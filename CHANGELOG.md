@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - NULL Translatable columns now materialize as empty Translatables instead of throwing `SqlNullValueException`
   - Fixes crash when stored procedures return NULL in JSON/text columns
   - Note: Uses internal EF Core API (`convertsNulls`) with pragma warning suppression - this is necessary for proper NULL handling
+- **Read-only property handling in Translate() method**
+  - Added `property.CanWrite` check to skip read-only properties (computed properties like `public string ImageUrl => Media?.Url`)
+  - Fixes "Property set method not found" exception when entities have computed/getter-only properties
+  - Prevents crash in `ToListWithTranslationsAsync()` when entities contain unmapped getters
 
 ### Added
 - **Client-side translation helpers for raw SQL queries**

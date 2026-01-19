@@ -34,6 +34,12 @@ namespace EFTranslatable
 
             foreach (var property in currentType.GetProperties())
             {
+                // Skip read-only properties (no setter or computed properties)
+                if (!property.CanWrite)
+                {
+                    continue;
+                }
+
                 if (property.PropertyType == typeof(Translatable))
                 {
                     var propertyValue = property.GetValue(this);
