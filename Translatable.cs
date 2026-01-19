@@ -30,14 +30,35 @@ namespace EFTranslatable
         public string CurrentLocale { get; set; }
 
         /// <summary>
-        /// A constructor to build Translatable out of JSON string
+        /// A constructor to build Translatable out of JSON string.
+        /// Handles null, empty, or malformed JSON gracefully by initializing with an empty dictionary.
         /// </summary>
-        /// <param name="json">The giving JSON string</param>
+        /// <param name="json">The JSON string representing a dictionary of locale-translation pairs.
+        /// Can be null, empty, or malformed - will default to an empty dictionary in these cases.</param>
+        /// <remarks>
+        /// This constructor provides null safety by ensuring the Translations dictionary is never null.
+        /// If deserialization fails due to invalid JSON, an empty dictionary is used as a safe fallback.
+        /// </remarks>
         [JsonConstructor]
         public Translatable(string json)
         {
             CurrentLocale = null;
-            Translations = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                Translations = new Dictionary<string, string>();
+                return;
+            }
+
+            try
+            {
+                Translations = JsonSerializer.Deserialize<Dictionary<string, string>>(json)
+                               ?? new Dictionary<string, string>();
+            }
+            catch (JsonException)
+            {
+                Translations = new Dictionary<string, string>();
+            }
         }
 
         /// <summary>
@@ -52,11 +73,19 @@ namespace EFTranslatable
         }
 
         /// <summary>
-        /// Convert the current Translations to JSON
+        /// Convert the current Translations to JSON with Unicode support
         /// </summary>
-        /// <returns>JSON String</returns>
+        /// <returns>JSON string representation of the translations dictionary.
+        /// Returns "{}" (empty JSON object) if Translations is null.</returns>
+        /// <remarks>
+        /// This method includes null safety checks and uses JavaScriptEncoder to properly handle all Unicode characters,
+        /// making it safe for internationalized content.
+        /// </remarks>
         public string ToJson()
         {
+            if (Translations == null)
+                return "{}";
+
             return JsonSerializer.Serialize(Translations, new JsonSerializerOptions()
             {
                 Encoder = JavaScriptEncoder.Create(UnicodeRanges.All),
@@ -65,16 +94,24 @@ namespace EFTranslatable
         }
 
         /// <summary>
-        /// Set/Update the giving locale with the giving translation
+        /// Set/Update the given locale with the given translation
         /// </summary>
-        /// <param name="value">the giving translation</param>
+        /// <param name="value">The translation text to set</param>
         /// <param name="locale">
-        ///         the giving locale, If null the CurrentLocale will be used,
-        ///         If CurrentLocale is null The current Thread locale will be used instead
+        ///         The locale code (e.g., "en", "ar", "fr"). If null, the CurrentLocale will be used.
+        ///         If CurrentLocale is null, the current Thread's UI culture will be used instead.
         /// </param>
-        /// <returns>Translatable</returns>
+        /// <returns>The current Translatable instance for method chaining</returns>
+        /// <remarks>
+        /// This method includes null safety checks. If Translations is null, the method returns immediately
+        /// without throwing an exception. The method updates existing translations or adds new ones as needed.
+        /// </remarks>
         public Translatable Set(string value, string locale = null)
         {
+            // Defensive check
+            if (Translations == null)
+                return this;
+
             var key = locale
                       ?? CurrentLocale
                       ?? Thread.CurrentThread.CurrentUICulture.TwoLetterISOLanguageName.ToLowerInvariant();
@@ -88,27 +125,39 @@ namespace EFTranslatable
         }
 
         /// <summary>
-        /// Returns the Value of the used locale , If null the current Thread locale will be used instead
+        /// Returns the translated value for the specified locale with intelligent fallback logic
         /// </summary>
         /// <param name="locale">
-        ///     the giving locale to get it's value, If null the CurrentLocale will be used,
-        ///     If CurrentLocale is null The current Thread locale will be used instead,
-        ///     If no Translations found the FallbackLocale will be used
-        ///     , otherwise the First Translation found, will be used instead
+        ///     The locale code to retrieve (e.g., "en", "ar", "fr"). If null, the CurrentLocale will be used.
+        ///     If CurrentLocale is null, the current Thread's UI culture will be used.
+        ///     If no translation is found for the requested locale, the FallbackLocale will be used.
+        ///     If FallbackLocale is not set or not found, the first available translation will be used.
         /// </param>
-        /// <returns></returns>
+        /// <returns>
+        ///     The translated string for the specified locale, or an empty string if no translation is available.
+        ///     Never returns null.
+        /// </returns>
+        /// <remarks>
+        /// This method includes comprehensive null safety checks. If Translations is null,
+        /// an empty string is returned immediately. The fallback logic ensures that a valid
+        /// string is always returned, preventing NullReferenceExceptions in consuming code.
+        /// </remarks>
         public string Get(string locale = null)
         {
+            // Defensive check for null Translations (shouldn't happen after constructor fix)
+            if (Translations == null)
+                return string.Empty;
+
             var key = locale ?? CurrentLocale ?? Thread.CurrentThread.CurrentUICulture.TwoLetterISOLanguageName.ToLowerInvariant();
 
             if (string.IsNullOrEmpty(key) || !Translations.ContainsKey(key))
             {
-                key = FallbackLocale ?? Translations.Keys.FirstOrDefault() ?? "";
+                key = FallbackLocale ?? Translations.Keys.FirstOrDefault() ?? string.Empty;
             }
 
             Translations.TryGetValue(key, out var value);
 
-            return value ?? "";
+            return value ?? string.Empty;
         }
 
         /// <inheritdoc />

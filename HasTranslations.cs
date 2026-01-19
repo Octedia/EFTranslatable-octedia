@@ -1,4 +1,6 @@
-﻿namespace EFTranslatable
+﻿using System.Collections.Generic;
+
+namespace EFTranslatable
 {
     /// <summary>
     /// Give the ability to driven Entity to translate it's self
@@ -7,10 +9,24 @@
     public abstract class HasTranslations<T> where T : class, new()
     {
         /// <summary>
-        /// Translate current Entity to the specified locale 
+        /// Creates a new instance of the entity with all Translatable properties set to the specified locale.
+        /// Non-translatable properties are copied as-is to the new instance.
         /// </summary>
-        /// <param name="locale">The locale to translate to</param>
-        /// <returns>New translated Entity with the giving locale</returns>
+        /// <param name="locale">The target locale code (e.g., "en", "ar", "fr") to translate all Translatable properties to</param>
+        /// <returns>A new entity instance with all Translatable properties configured for the specified locale</returns>
+        /// <remarks>
+        /// This method uses reflection to iterate through all properties of the entity.
+        /// For Translatable properties:
+        /// - Null values are safely handled by creating empty Translatable instances
+        /// - The locale is set using WithLocale() which affects the implicit string conversion
+        /// - The original entity's properties remain unchanged
+        ///
+        /// For non-Translatable properties:
+        /// - Values are copied by reference to the new instance
+        ///
+        /// This method is null-safe and will not throw NullReferenceException even if
+        /// Translatable properties contain null values from the database.
+        /// </remarks>
         public T Translate(string locale)
         {
             var result = new T();
@@ -20,7 +36,17 @@
             {
                 if (property.PropertyType == typeof(Translatable))
                 {
-                    var value = (Translatable)property.GetValue(this)!;
+                    var propertyValue = property.GetValue(this);
+
+                    // Handle null Translatable properties gracefully
+                    if (propertyValue == null)
+                    {
+                        // Set default empty Translatable
+                        property.SetValue(result, new Translatable(new Dictionary<string, string>()));
+                        continue;
+                    }
+
+                    var value = (Translatable)propertyValue;
                     var tempLocale = value.CurrentLocale;
                     value.WithLocale(locale);
                     property.SetValue(result, value);

@@ -139,6 +139,83 @@ There is two ways of making a `Translatable` :
     }
 ```
 
+## Null Safety
+
+EFTranslatable includes comprehensive null safety features to handle edge cases gracefully:
+
+### Safe Handling of NULL Database Values
+
+If your database contains NULL values in Translatable columns (which can happen with legacy data or optional fields), EFTranslatable now handles them safely:
+
+```C#
+// Even if Summary is NULL in the database, this won't crash
+var doctor = await _context.Doctors.FindAsync(id);
+var translated = doctor.Translate("en"); // ✅ Safe - null properties become empty Translatable
+
+// Empty Translatable returns empty string (not null)
+string summary = translated.Summary; // Returns "" instead of throwing
+```
+
+### Constructor Null Safety
+
+The `Translatable` constructor safely handles null, empty, or malformed JSON:
+
+```C#
+// All of these are safe and create valid Translatable instances
+var t1 = new Translatable(null);                    // ✅ Creates empty Translatable
+var t2 = new Translatable("");                      // ✅ Creates empty Translatable
+var t3 = new Translatable("{invalid json}");        // ✅ Creates empty Translatable
+var t4 = new Translatable("{\"en\":\"Hello\"}");   // ✅ Parses correctly
+```
+
+### Safe String Conversion
+
+The implicit string conversion and `Get()` method always return a valid string:
+
+```C#
+var emptyTranslatable = new Translatable(new Dictionary<string, string>());
+
+// These never throw, always return empty string if translation not found
+string text1 = emptyTranslatable;           // Returns ""
+string text2 = emptyTranslatable.Get("en"); // Returns ""
+```
+
+### Best Practices
+
+While EFTranslatable handles null values safely, we recommend:
+
+1. **Initialize properties** when creating new entities:
+   ```C#
+   public class Post : HasTranslations<Post>
+   {
+       public Translatable Title { get; set; } = new();  // ✅ Good practice
+       public Translatable Content { get; set; } = new(); // ✅ Good practice
+   }
+   ```
+
+2. **Use NOT NULL constraints** in your database schema for better data quality (optional):
+   ```SQL
+   ALTER TABLE Posts ALTER COLUMN Title NVARCHAR(MAX) NOT NULL DEFAULT '{}';
+   ```
+
+3. **Handle empty translations** in your UI:
+   ```C#
+   var translatedTitle = post.Title.Get("en");
+   if (string.IsNullOrEmpty(translatedTitle))
+   {
+       // Show placeholder or fallback content
+       translatedTitle = "Untitled";
+   }
+   ```
+
+### Migration from Older Versions
+
+If you're upgrading from a version that crashed on NULL values:
+- ✅ **No code changes required** - existing code will work
+- ✅ **No database migration required** - NULL columns now handled gracefully
+- ✅ **Backward compatible** - all existing functionality preserved
+
+For more details on the null safety improvements, see [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
