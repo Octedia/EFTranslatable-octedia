@@ -1,8 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 
 namespace EFTranslatable.Extensions
 {
@@ -136,6 +139,57 @@ namespace EFTranslatable.Extensions
                 LocaleContains!, containsExpr);
 
             return source.Where(Expression.Lambda<Func<TSource, bool>>(expr2, false, property.Parameters));
+        }
+
+        /// <summary>
+        /// Materializes the query and applies translations to all entities in one call.
+        /// Use this with FromSqlRaw/FromSqlInterpolated to translate results client-side.
+        /// </summary>
+        /// <typeparam name="T">Entity type that inherits from HasTranslations&lt;T&gt;</typeparam>
+        /// <param name="query">The IQueryable (typically from FromSqlRaw)</param>
+        /// <param name="locale">Target locale code (e.g., "en", "ar", "fr")</param>
+        /// <param name="cancellationToken">Cancellation token</param>
+        /// <returns>List of translated entities</returns>
+        /// <example>
+        /// <code>
+        /// var doctors = await context.Doctors
+        ///     .FromSqlRaw("EXEC sp_GetDoctors")
+        ///     .ToListWithTranslationsAsync("en");
+        /// // doctors[0].Title is now a string in English
+        /// </code>
+        /// </example>
+        public static async Task<List<T>> ToListWithTranslationsAsync<T>(
+            this IQueryable<T> query,
+            string locale,
+            CancellationToken cancellationToken = default
+        ) where T : HasTranslations<T>, new()
+        {
+            var entities = await query.ToListAsync(cancellationToken);
+            return entities.Select(e => e.Translate(locale)).ToList();
+        }
+
+        /// <summary>
+        /// Materializes the query and applies translations to all entities (synchronous version).
+        /// Use this with FromSqlRaw/FromSqlInterpolated to translate results client-side.
+        /// </summary>
+        /// <typeparam name="T">Entity type that inherits from HasTranslations&lt;T&gt;</typeparam>
+        /// <param name="query">The IQueryable (typically from FromSqlRaw)</param>
+        /// <param name="locale">Target locale code (e.g., "en", "ar", "fr")</param>
+        /// <returns>List of translated entities</returns>
+        /// <example>
+        /// <code>
+        /// var doctors = context.Doctors
+        ///     .FromSqlRaw("EXEC sp_GetDoctors")
+        ///     .ToListWithTranslations("en");
+        /// </code>
+        /// </example>
+        public static List<T> ToListWithTranslations<T>(
+            this IQueryable<T> query,
+            string locale
+        ) where T : HasTranslations<T>, new()
+        {
+            var entities = query.ToList();
+            return entities.Select(e => e.Translate(locale)).ToList();
         }
     }
 }

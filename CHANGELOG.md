@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Issue #2: NULL values in FromSqlRaw results now work correctly**
+  - Modified `ValueConverter` to handle NULL database values with `convertsNulls: true` parameter
+  - NULL Translatable columns now materialize as empty Translatables instead of throwing `SqlNullValueException`
+  - Fixes crash when stored procedures return NULL in JSON/text columns
+  - Note: Uses internal EF Core API (`convertsNulls`) with pragma warning suppression - this is necessary for proper NULL handling
+
+### Added
+- **Client-side translation helpers for raw SQL queries**
+  - `ToListWithTranslationsAsync(locale)` - Async extension method combining `ToListAsync()` + translation in one call
+  - `ToListWithTranslations(locale)` - Synchronous version for non-async scenarios
+  - Provides cleaner API for translating `FromSqlRaw`/`FromSqlInterpolated` results
+  - Replaces manual `.Get(locale)` calls with single method chain
+  - Example: `await context.Doctors.FromSqlRaw("EXEC sp_GetDoctors").ToListWithTranslationsAsync("en")`
+
 ### Fixed - Phase 2: Critical Safety Improvements
 
 #### Additional Critical Fixes (7 Issues)

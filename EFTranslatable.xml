@@ -31,6 +31,42 @@
             <typeparam name="TSource">EntityFrameWork Model</typeparam>
             <returns>IQueryable</returns>
         </member>
+        <member name="M:EFTranslatable.Extensions.QueryableExtensions.ToListWithTranslationsAsync``1(System.Linq.IQueryable{``0},System.String,System.Threading.CancellationToken)">
+            <summary>
+            Materializes the query and applies translations to all entities in one call.
+            Use this with FromSqlRaw/FromSqlInterpolated to translate results client-side.
+            </summary>
+            <typeparam name="T">Entity type that inherits from HasTranslations&lt;T&gt;</typeparam>
+            <param name="query">The IQueryable (typically from FromSqlRaw)</param>
+            <param name="locale">Target locale code (e.g., "en", "ar", "fr")</param>
+            <param name="cancellationToken">Cancellation token</param>
+            <returns>List of translated entities</returns>
+            <example>
+            <code>
+            var doctors = await context.Doctors
+                .FromSqlRaw("EXEC sp_GetDoctors")
+                .ToListWithTranslationsAsync("en");
+            // doctors[0].Title is now a string in English
+            </code>
+            </example>
+        </member>
+        <member name="M:EFTranslatable.Extensions.QueryableExtensions.ToListWithTranslations``1(System.Linq.IQueryable{``0},System.String)">
+            <summary>
+            Materializes the query and applies translations to all entities (synchronous version).
+            Use this with FromSqlRaw/FromSqlInterpolated to translate results client-side.
+            </summary>
+            <typeparam name="T">Entity type that inherits from HasTranslations&lt;T&gt;</typeparam>
+            <param name="query">The IQueryable (typically from FromSqlRaw)</param>
+            <param name="locale">Target locale code (e.g., "en", "ar", "fr")</param>
+            <returns>List of translated entities</returns>
+            <example>
+            <code>
+            var doctors = context.Doctors
+                .FromSqlRaw("EXEC sp_GetDoctors")
+                .ToListWithTranslations("en");
+            </code>
+            </example>
+        </member>
         <member name="T:EFTranslatable.Extensions.TranslatableExtensions">
             <summary>
             Add the required Database functions to the current ModelBuilder

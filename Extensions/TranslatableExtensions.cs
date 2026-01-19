@@ -52,9 +52,12 @@ namespace EFTranslatable.Extensions
 
             // Create a value converter for storing Translatable as JSON in the database
             // The Translatable constructor handles null values safely
+            // convertsNulls: true ensures the converter is called even when database returns NULL
+            // Note: convertsNulls is marked as internal in EF Core 6 but is necessary for handling NULL database values
             var converter = new ValueConverter<Translatable, string>(
                v => v.ToJson(),
-               v => new Translatable(v)
+               v => new Translatable(v),
+               convertsNulls: true
            );
 
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())

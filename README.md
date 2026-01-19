@@ -139,6 +139,66 @@ There is two ways of making a `Translatable` :
     }
 ```
 
+### Using Raw SQL Queries and Stored Procedures
+
+When using `FromSqlRaw()` or `FromSqlInterpolated()` with Translatable properties, use the `ToListWithTranslationsAsync()` extension method for cleaner code:
+
+#### Recommended Approach
+
+```C#
+using EFTranslatable.Extensions;
+
+// Async version (recommended)
+var doctors = await _context.Doctors
+    .FromSqlRaw("EXEC sp_Doctors_Module_centralized @Param",
+        new SqlParameter("@Param", value))
+    .ToListWithTranslationsAsync("en");
+
+// doctors[0].Title is already translated to English
+
+// Sync version
+var posts = _context.Posts
+    .FromSqlRaw("SELECT * FROM Posts")
+    .ToListWithTranslations("ar");
+```
+
+#### Alternative: Manual Translation
+
+If you need more control, materialize first then translate:
+
+```C#
+var doctors = await _context.Doctors
+    .FromSqlRaw("EXEC sp_GetDoctors")
+    .ToListAsync();
+
+// Manually translate each property
+var translated = doctors.Select(d => new
+{
+    d.Id,
+    Title = d.Title.Get("en"),
+    Description = d.Description.Get("en")
+}).ToList();
+
+// Or use .Translate() for whole entity
+var translated = doctors.Select(d => d.Translate("en")).ToList();
+```
+
+#### Important Notes
+
+1. **NULL values are safe**: The library now handles NULL Translatable columns gracefully - they become empty Translatables with no translations.
+
+2. **Cannot use .Select() in query pipeline**: This will NOT work:
+   ```C#
+   // ❌ FAILS: InvalidOperationException - non-composable SQL
+   var result = await context.Doctors
+       .FromSqlRaw("EXEC sp_GetDoctors")
+       .Select(d => d.Translate("en"))  // Cannot compose over FromSqlRaw
+       .ToListAsync();
+   ```
+   Use `ToListWithTranslationsAsync()` instead (shown above).
+
+3. **Works with all providers**: SQL Server, PostgreSQL, MySQL, SQLite - any database with JSON support.
+
 ## Null Safety
 
 EFTranslatable includes comprehensive null safety features to handle edge cases gracefully:
