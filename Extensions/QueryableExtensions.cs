@@ -12,9 +12,33 @@ namespace EFTranslatable.Extensions
     public static class QueryableExtensions
     {
         private static MethodInfo _localeExtract;
+        private static readonly object _lockObject = new object();
 
-        private static MethodInfo LocaleExtract => _localeExtract ??= typeof(Translatable)
-            .GetMethod("LocaleExtract", BindingFlags.NonPublic | BindingFlags.Static);
+        private static MethodInfo LocaleExtract
+        {
+            get
+            {
+                if (_localeExtract == null)
+                {
+                    lock (_lockObject)
+                    {
+                        if (_localeExtract == null)
+                        {
+                            _localeExtract = typeof(Translatable)
+                                .GetMethod("LocaleExtract", BindingFlags.NonPublic | BindingFlags.Static);
+
+                            if (_localeExtract == null)
+                            {
+                                throw new InvalidOperationException(
+                                    "Failed to find LocaleExtract method on Translatable type. " +
+                                    "Cannot execute localized queries. The EFTranslatable library may be corrupted.");
+                            }
+                        }
+                    }
+                }
+                return _localeExtract;
+            }
+        }
 
         /// <summary>
         /// Filter the current EntitySet where the giving property-predicate Equals to the giving String
@@ -30,6 +54,12 @@ namespace EFTranslatable.Extensions
             string equalsTo,
             string locale = null)
         {
+            if (equalsTo == null)
+            {
+                throw new ArgumentNullException(nameof(equalsTo),
+                    "The comparison value cannot be null. Use string.Empty to search for empty translations.");
+            }
+
             var l = locale
                     ?? Translatable.FallbackLocale
                     ?? Thread.CurrentThread.CurrentUICulture.TwoLetterISOLanguageName.ToLowerInvariant();
@@ -45,8 +75,32 @@ namespace EFTranslatable.Extensions
 
 
         private static MethodInfo _localeContains;
-        private static MethodInfo LocaleContains => _localeContains ??= typeof(string)
-            .GetMethod("Contains", new[] { typeof(string), });
+
+        private static MethodInfo LocaleContains
+        {
+            get
+            {
+                if (_localeContains == null)
+                {
+                    lock (_lockObject)
+                    {
+                        if (_localeContains == null)
+                        {
+                            _localeContains = typeof(string)
+                                .GetMethod("Contains", new[] { typeof(string) });
+
+                            if (_localeContains == null)
+                            {
+                                throw new InvalidOperationException(
+                                    "Failed to find string.Contains(string) method. " +
+                                    "Cannot execute localized contains queries. This may indicate a .NET framework version incompatibility.");
+                            }
+                        }
+                    }
+                }
+                return _localeContains;
+            }
+        }
         /// <summary>
         /// Filter the current EntitySet where the giving property-predicate Contains to the giving String
         /// </summary>
@@ -61,6 +115,12 @@ namespace EFTranslatable.Extensions
             string contains,
             string locale = null)
         {
+            if (contains == null)
+            {
+                throw new ArgumentNullException(nameof(contains),
+                    "The search string cannot be null. Use string.Empty to search for empty content.");
+            }
+
             var containsExpr = Expression.Constant(contains);
             var convertedBody = Expression.Convert(property.Body, typeof(string));
 

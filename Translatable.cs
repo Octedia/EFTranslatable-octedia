@@ -55,8 +55,9 @@ namespace EFTranslatable
                 Translations = JsonSerializer.Deserialize<Dictionary<string, string>>(json)
                                ?? new Dictionary<string, string>();
             }
-            catch (JsonException)
+            catch (Exception)  // Catch all exceptions, not just JsonException
             {
+                // Gracefully handle any deserialization error (JsonException, ArgumentException, etc.)
                 Translations = new Dictionary<string, string>();
             }
         }

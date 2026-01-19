@@ -46,11 +46,21 @@ namespace EFTranslatable
                         continue;
                     }
 
-                    var value = (Translatable)propertyValue;
-                    var tempLocale = value.CurrentLocale;
-                    value.WithLocale(locale);
-                    property.SetValue(result, value);
-                    value.WithLocale(tempLocale);
+                    // Type-safe cast with pattern matching to handle EF proxies and type mismatches
+                    if (propertyValue is Translatable value)
+                    {
+                        var tempLocale = value.CurrentLocale;
+                        value.WithLocale(locale);
+                        property.SetValue(result, value);
+                        value.WithLocale(tempLocale);
+                    }
+                    else
+                    {
+                        // Property type says Translatable but value is different type
+                        // This can happen with EF proxies or inheritance issues
+                        // Fall back to empty Translatable rather than crashing
+                        property.SetValue(result, new Translatable(new Dictionary<string, string>()));
+                    }
                 }
                 else
                 {
