@@ -90,7 +90,9 @@ namespace EFTranslatable.Extensions
                                   ? new Translatable(new Dictionary<string, string>())
                                   : new Translatable(c.Translations.ToDictionary(_ => _.Key, _ => _.Value))
                           )
-                      ).HasColumnType(columnType);
+                      )
+                      .HasColumnType(columnType)
+                      .IsRequired(false); // Allow NULL values in database - converter will handle them
                 }
             }
 
