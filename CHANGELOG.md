@@ -10,9 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Issue #2: NULL values in FromSqlRaw results now work correctly**
   - Modified `ValueConverter` to handle NULL database values with `convertsNulls: true` parameter
-  - Added `.IsRequired(false)` to all Translatable properties to allow NULL at EF Core metadata level
   - NULL Translatable columns now materialize as empty Translatables instead of throwing `SqlNullValueException`
-  - Fixes crash when stored procedures return NULL in JSON/text columns (`Data is Null. This method or property cannot be called on Null values`)
+  - Fixes crash when stored procedures return NULL in JSON/text columns
   - Note: Uses internal EF Core API (`convertsNulls`) with pragma warning suppression - this is necessary for proper NULL handling
 - **Read-only property handling in Translate() method**
   - Added `property.CanWrite` check to skip read-only properties (computed properties like `public string ImageUrl => Media?.Url`)
