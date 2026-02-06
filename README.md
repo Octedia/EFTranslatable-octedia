@@ -139,6 +139,143 @@ There is two ways of making a `Translatable` :
     }
 ```
 
+### Using Raw SQL Queries and Stored Procedures
+
+When using `FromSqlRaw()` or `FromSqlInterpolated()` with Translatable properties, use the `ToListWithTranslationsAsync()` extension method for cleaner code:
+
+#### Recommended Approach
+
+```C#
+using EFTranslatable.Extensions;
+
+// Async version (recommended)
+var doctors = await _context.Doctors
+    .FromSqlRaw("EXEC sp_Doctors_Module_centralized @Param",
+        new SqlParameter("@Param", value))
+    .ToListWithTranslationsAsync("en");
+
+// doctors[0].Title is already translated to English
+
+// Sync version
+var posts = _context.Posts
+    .FromSqlRaw("SELECT * FROM Posts")
+    .ToListWithTranslations("ar");
+```
+
+#### Alternative: Manual Translation
+
+If you need more control, materialize first then translate:
+
+```C#
+var doctors = await _context.Doctors
+    .FromSqlRaw("EXEC sp_GetDoctors")
+    .ToListAsync();
+
+// Manually translate each property
+var translated = doctors.Select(d => new
+{
+    d.Id,
+    Title = d.Title.Get("en"),
+    Description = d.Description.Get("en")
+}).ToList();
+
+// Or use .Translate() for whole entity
+var translated = doctors.Select(d => d.Translate("en")).ToList();
+```
+
+#### Important Notes
+
+1. **NULL values are safe**: The library now handles NULL Translatable columns gracefully - they become empty Translatables with no translations.
+
+2. **Cannot use .Select() in query pipeline**: This will NOT work:
+   ```C#
+   // ❌ FAILS: InvalidOperationException - non-composable SQL
+   var result = await context.Doctors
+       .FromSqlRaw("EXEC sp_GetDoctors")
+       .Select(d => d.Translate("en"))  // Cannot compose over FromSqlRaw
+       .ToListAsync();
+   ```
+   Use `ToListWithTranslationsAsync()` instead (shown above).
+
+3. **Works with all providers**: SQL Server, PostgreSQL, MySQL, SQLite - any database with JSON support.
+
+## Null Safety
+
+EFTranslatable includes comprehensive null safety features to handle edge cases gracefully:
+
+### Safe Handling of NULL Database Values
+
+If your database contains NULL values in Translatable columns (which can happen with legacy data or optional fields), EFTranslatable now handles them safely:
+
+```C#
+// Even if Summary is NULL in the database, this won't crash
+var doctor = await _context.Doctors.FindAsync(id);
+var translated = doctor.Translate("en"); // ✅ Safe - null properties become empty Translatable
+
+// Empty Translatable returns empty string (not null)
+string summary = translated.Summary; // Returns "" instead of throwing
+```
+
+### Constructor Null Safety
+
+The `Translatable` constructor safely handles null, empty, or malformed JSON:
+
+```C#
+// All of these are safe and create valid Translatable instances
+var t1 = new Translatable(null);                    // ✅ Creates empty Translatable
+var t2 = new Translatable("");                      // ✅ Creates empty Translatable
+var t3 = new Translatable("{invalid json}");        // ✅ Creates empty Translatable
+var t4 = new Translatable("{\"en\":\"Hello\"}");   // ✅ Parses correctly
+```
+
+### Safe String Conversion
+
+The implicit string conversion and `Get()` method always return a valid string:
+
+```C#
+var emptyTranslatable = new Translatable(new Dictionary<string, string>());
+
+// These never throw, always return empty string if translation not found
+string text1 = emptyTranslatable;           // Returns ""
+string text2 = emptyTranslatable.Get("en"); // Returns ""
+```
+
+### Best Practices
+
+While EFTranslatable handles null values safely, we recommend:
+
+1. **Initialize properties** when creating new entities:
+   ```C#
+   public class Post : HasTranslations<Post>
+   {
+       public Translatable Title { get; set; } = new();  // ✅ Good practice
+       public Translatable Content { get; set; } = new(); // ✅ Good practice
+   }
+   ```
+
+2. **Use NOT NULL constraints** in your database schema for better data quality (optional):
+   ```SQL
+   ALTER TABLE Posts ALTER COLUMN Title NVARCHAR(MAX) NOT NULL DEFAULT '{}';
+   ```
+
+3. **Handle empty translations** in your UI:
+   ```C#
+   var translatedTitle = post.Title.Get("en");
+   if (string.IsNullOrEmpty(translatedTitle))
+   {
+       // Show placeholder or fallback content
+       translatedTitle = "Untitled";
+   }
+   ```
+
+### Migration from Older Versions
+
+If you're upgrading from a version that crashed on NULL values:
+- ✅ **No code changes required** - existing code will work
+- ✅ **No database migration required** - NULL columns now handled gracefully
+- ✅ **Backward compatible** - all existing functionality preserved
+
+For more details on the null safety improvements, see [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
@@ -29,7 +30,16 @@ namespace EFTranslatable.Extensions
                 Translatable.FallbackLocale = fallbackLocale;
             }
 
-            modelBuilder.HasDbFunction(typeof(Translatable).GetMethod("LocaleExtract", BindingFlags.NonPublic | BindingFlags.Static)!)
+            // Validate that LocaleExtract method exists before registering as database function
+            var localeExtractMethod = typeof(Translatable).GetMethod("LocaleExtract", BindingFlags.NonPublic | BindingFlags.Static);
+            if (localeExtractMethod == null)
+            {
+                throw new InvalidOperationException(
+                    "Failed to find LocaleExtract method on Translatable type. " +
+                    "This is a critical internal error - the EFTranslatable library may be corrupted or incompatible.");
+            }
+
+            modelBuilder.HasDbFunction(localeExtractMethod)
                 .HasTranslation((args) =>
                 {
                     return new SqlFunctionExpression(
@@ -40,9 +50,14 @@ namespace EFTranslatable.Extensions
                 });
 
 
+            // Create a value converter for storing Translatable as JSON in the database
+            // The Translatable constructor handles null values safely
+            // convertsNulls: true ensures the converter is called even when database returns NULL
+            // Note: convertsNulls is marked as internal in EF Core 6 but is necessary for handling NULL database values
             var converter = new ValueConverter<Translatable, string>(
                v => v.ToJson(),
-               v => new Translatable(v)
+               v => new Translatable(v),
+               convertsNulls: true
            );
 
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
@@ -57,10 +72,23 @@ namespace EFTranslatable.Extensions
                      HasConversion
                       (
                           converter
+                          // ValueComparer with null safety for EF Core change tracking
+                          // Handles cases where Translatable.Translations might be null (shouldn't happen after constructor fix, but defensive)
                           , new ValueComparer<Translatable>(
-                              (first, second) => first.Translations.SequenceEqual(second.Translations),
-                              c => c.Translations.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
-                              c => new Translatable(c.Translations.ToDictionary(_ => _.Key, _ => _.Value))
+                              // Equality comparison: both null = equal, one null = not equal, otherwise compare dictionaries
+                              (first, second) =>
+                                  first.Translations == null && second.Translations == null ? true :
+                                  first.Translations == null || second.Translations == null ? false :
+                                  first.Translations.SequenceEqual(second.Translations),
+                              // Hash code generation: null returns 0, filter out null entries, then aggregate dictionary hash codes
+                              c => c.Translations == null ? 0 :
+                                   c.Translations
+                                       .Where(kvp => kvp.Key != null && kvp.Value != null)
+                                       .Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                              // Snapshot creation: null creates empty Translatable, otherwise deep copy the dictionary
+                              c => c.Translations == null
+                                  ? new Translatable(new Dictionary<string, string>())
+                                  : new Translatable(c.Translations.ToDictionary(_ => _.Key, _ => _.Value))
                           )
                       ).HasColumnType(columnType);
                 }

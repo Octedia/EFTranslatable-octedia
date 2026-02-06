@@ -31,6 +31,42 @@
             <typeparam name="TSource">EntityFrameWork Model</typeparam>
             <returns>IQueryable</returns>
         </member>
+        <member name="M:EFTranslatable.Extensions.QueryableExtensions.ToListWithTranslationsAsync``1(System.Linq.IQueryable{``0},System.String,System.Threading.CancellationToken)">
+            <summary>
+            Materializes the query and applies translations to all entities in one call.
+            Use this with FromSqlRaw/FromSqlInterpolated to translate results client-side.
+            </summary>
+            <typeparam name="T">Entity type that inherits from HasTranslations&lt;T&gt;</typeparam>
+            <param name="query">The IQueryable (typically from FromSqlRaw)</param>
+            <param name="locale">Target locale code (e.g., "en", "ar", "fr")</param>
+            <param name="cancellationToken">Cancellation token</param>
+            <returns>List of translated entities</returns>
+            <example>
+            <code>
+            var doctors = await context.Doctors
+                .FromSqlRaw("EXEC sp_GetDoctors")
+                .ToListWithTranslationsAsync("en");
+            // doctors[0].Title is now a string in English
+            </code>
+            </example>
+        </member>
+        <member name="M:EFTranslatable.Extensions.QueryableExtensions.ToListWithTranslations``1(System.Linq.IQueryable{``0},System.String)">
+            <summary>
+            Materializes the query and applies translations to all entities (synchronous version).
+            Use this with FromSqlRaw/FromSqlInterpolated to translate results client-side.
+            </summary>
+            <typeparam name="T">Entity type that inherits from HasTranslations&lt;T&gt;</typeparam>
+            <param name="query">The IQueryable (typically from FromSqlRaw)</param>
+            <param name="locale">Target locale code (e.g., "en", "ar", "fr")</param>
+            <returns>List of translated entities</returns>
+            <example>
+            <code>
+            var doctors = context.Doctors
+                .FromSqlRaw("EXEC sp_GetDoctors")
+                .ToListWithTranslations("en");
+            </code>
+            </example>
+        </member>
         <member name="T:EFTranslatable.Extensions.TranslatableExtensions">
             <summary>
             Add the required Database functions to the current ModelBuilder
@@ -53,11 +89,25 @@
             <typeparam name="T">EntityFrameWork Model</typeparam>
         </member>
         <member name="M:EFTranslatable.HasTranslations`1.Translate(System.String)">
-            <summary>
-            Translate current Entity to the specified locale 
-            </summary>
-            <param name="locale">The locale to translate to</param>
-            <returns>New translated Entity with the giving locale</returns>
+             <summary>
+             Creates a new instance of the entity with all Translatable properties set to the specified locale.
+             Non-translatable properties are copied as-is to the new instance.
+             </summary>
+             <param name="locale">The target locale code (e.g., "en", "ar", "fr") to translate all Translatable properties to</param>
+             <returns>A new entity instance with all Translatable properties configured for the specified locale</returns>
+             <remarks>
+             This method uses reflection to iterate through all properties of the entity.
+             For Translatable properties:
+             - Null values are safely handled by creating empty Translatable instances
+             - The locale is set using WithLocale() which affects the implicit string conversion
+             - The original entity's properties remain unchanged
+            
+             For non-Translatable properties:
+             - Values are copied by reference to the new instance
+            
+             This method is null-safe and will not throw NullReferenceException even if
+             Translatable properties contain null values from the database.
+             </remarks>
         </member>
         <member name="T:EFTranslatable.Translatable">
             <summary>
@@ -81,9 +131,15 @@
         </member>
         <member name="M:EFTranslatable.Translatable.#ctor(System.String)">
             <summary>
-            A constructor to build Translatable out of JSON string
+            A constructor to build Translatable out of JSON string.
+            Handles null, empty, or malformed JSON gracefully by initializing with an empty dictionary.
             </summary>
-            <param name="json">The giving JSON string</param>
+            <param name="json">The JSON string representing a dictionary of locale-translation pairs.
+            Can be null, empty, or malformed - will default to an empty dictionary in these cases.</param>
+            <remarks>
+            This constructor provides null safety by ensuring the Translations dictionary is never null.
+            If deserialization fails due to invalid JSON, an empty dictionary is used as a safe fallback.
+            </remarks>
         </member>
         <member name="M:EFTranslatable.Translatable.#ctor(System.Collections.Generic.Dictionary{System.String,System.String})">
             <summary>
@@ -93,32 +149,49 @@
         </member>
         <member name="M:EFTranslatable.Translatable.ToJson">
             <summary>
-            Convert the current Translations to JSON
+            Convert the current Translations to JSON with Unicode support
             </summary>
-            <returns>JSON String</returns>
+            <returns>JSON string representation of the translations dictionary.
+            Returns "{}" (empty JSON object) if Translations is null.</returns>
+            <remarks>
+            This method includes null safety checks and uses JavaScriptEncoder to properly handle all Unicode characters,
+            making it safe for internationalized content.
+            </remarks>
         </member>
         <member name="M:EFTranslatable.Translatable.Set(System.String,System.String)">
             <summary>
-            Set/Update the giving locale with the giving translation
+            Set/Update the given locale with the given translation
             </summary>
-            <param name="value">the giving translation</param>
+            <param name="value">The translation text to set</param>
             <param name="locale">
-                    the giving locale, If null the CurrentLocale will be used,
-                    If CurrentLocale is null The current Thread locale will be used instead
+                    The locale code (e.g., "en", "ar", "fr"). If null, the CurrentLocale will be used.
+                    If CurrentLocale is null, the current Thread's UI culture will be used instead.
             </param>
-            <returns>Translatable</returns>
+            <returns>The current Translatable instance for method chaining</returns>
+            <remarks>
+            This method includes null safety checks. If Translations is null, the method returns immediately
+            without throwing an exception. The method updates existing translations or adds new ones as needed.
+            </remarks>
         </member>
         <member name="M:EFTranslatable.Translatable.Get(System.String)">
             <summary>
-            Returns the Value of the used locale , If null the current Thread locale will be used instead
+            Returns the translated value for the specified locale with intelligent fallback logic
             </summary>
             <param name="locale">
-                the giving locale to get it's value, If null the CurrentLocale will be used,
-                If CurrentLocale is null The current Thread locale will be used instead,
-                If no Translations found the FallbackLocale will be used
-                , otherwise the First Translation found, will be used instead
+                The locale code to retrieve (e.g., "en", "ar", "fr"). If null, the CurrentLocale will be used.
+                If CurrentLocale is null, the current Thread's UI culture will be used.
+                If no translation is found for the requested locale, the FallbackLocale will be used.
+                If FallbackLocale is not set or not found, the first available translation will be used.
             </param>
-            <returns></returns>
+            <returns>
+                The translated string for the specified locale, or an empty string if no translation is available.
+                Never returns null.
+            </returns>
+            <remarks>
+            This method includes comprehensive null safety checks. If Translations is null,
+            an empty string is returned immediately. The fallback logic ensures that a valid
+            string is always returned, preventing NullReferenceExceptions in consuming code.
+            </remarks>
         </member>
         <member name="M:EFTranslatable.Translatable.ToString">
             <inheritdoc />
