@@ -1,31 +1,23 @@
-﻿using System.Collections.Generic;
+#nullable enable
+using System.Collections.Generic;
 
 namespace EFTranslatable
 {
     /// <summary>
-    /// Give the ability to driven Entity to translate it's self
+    /// Give the ability to a derived entity to translate itself.
     /// </summary>
-    /// <typeparam name="T">EntityFrameWork Model</typeparam>
+    /// <typeparam name="T">EntityFramework model</typeparam>
     public abstract class HasTranslations<T> where T : class, new()
     {
         /// <summary>
-        /// Creates a new instance of the entity with all Translatable properties set to the specified locale.
-        /// Non-translatable properties are copied as-is to the new instance.
+        /// Creates a new instance of the entity with every <see cref="Translatable"/> property
+        /// pointing at a fresh copy whose <see cref="Translatable.CurrentLocale"/> is set to
+        /// <paramref name="locale"/>. Non-Translatable properties are copied by reference.
         /// </summary>
-        /// <param name="locale">The target locale code (e.g., "en", "ar", "fr") to translate all Translatable properties to</param>
-        /// <returns>A new entity instance with all Translatable properties configured for the specified locale</returns>
         /// <remarks>
-        /// This method uses reflection to iterate through all properties of the entity.
-        /// For Translatable properties:
-        /// - Null values are safely handled by creating empty Translatable instances
-        /// - The locale is set using WithLocale() which affects the implicit string conversion
-        /// - The original entity's properties remain unchanged
-        ///
-        /// For non-Translatable properties:
-        /// - Values are copied by reference to the new instance
-        ///
-        /// This method is null-safe and will not throw NullReferenceException even if
-        /// Translatable properties contain null values from the database.
+        /// Translatable is a reference type as of v2.0, so a copy is made per call to avoid
+        /// leaking the locale mutation back into the source entity. A null source Translatable
+        /// becomes <see cref="Translatable.Empty"/> with the requested locale applied.
         /// </remarks>
         public T Translate(string locale)
         {
@@ -34,7 +26,6 @@ namespace EFTranslatable
 
             foreach (var property in currentType.GetProperties())
             {
-                // Skip read-only properties (no setter or computed properties)
                 if (!property.CanWrite)
                 {
                     continue;
@@ -44,28 +35,17 @@ namespace EFTranslatable
                 {
                     var propertyValue = property.GetValue(this);
 
-                    // Handle null Translatable properties gracefully
-                    if (propertyValue == null)
+                    if (propertyValue is Translatable source)
                     {
-                        // Set default empty Translatable
-                        property.SetValue(result, new Translatable(new Dictionary<string, string>()));
-                        continue;
-                    }
-
-                    // Type-safe cast with pattern matching to handle EF proxies and type mismatches
-                    if (propertyValue is Translatable value)
-                    {
-                        var tempLocale = value.CurrentLocale;
-                        value.WithLocale(locale);
-                        property.SetValue(result, value);
-                        value.WithLocale(tempLocale);
+                        var copy = new Translatable(new Dictionary<string, string>(source.Translations));
+                        copy.WithLocale(locale);
+                        property.SetValue(result, copy);
                     }
                     else
                     {
-                        // Property type says Translatable but value is different type
-                        // This can happen with EF proxies or inheritance issues
-                        // Fall back to empty Translatable rather than crashing
-                        property.SetValue(result, new Translatable(new Dictionary<string, string>()));
+                        var empty = new Translatable();
+                        empty.WithLocale(locale);
+                        property.SetValue(result, empty);
                     }
                 }
                 else

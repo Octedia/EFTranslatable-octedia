@@ -1,9 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFrameworks>net6.0;net8.0;net10.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
     <PackageId>EFTranslatable</PackageId>
-    <Version>1.0.4</Version>
+    <Version>2.0.0</Version>
     <Authors>Abanoub Nassem Mousa</Authors>
     <Company>AbCodes.dev</Company>
     <PackageProjectUrl>https://github.com/AbanoubNassem/EFTranslatable</PackageProjectUrl>
@@ -13,7 +15,7 @@
     <Copyright>MIT</Copyright>
     <Description>A simple way to make Entity Framework models translatable!</Description>
     <PackageTags>Entity,Framework, EF, model,translatable,translate</PackageTags>
-    <PackageReleaseNotes>upgrade dependencies to 6.0</PackageReleaseNotes>
+    <PackageReleaseNotes>v2: Translatable is now a class, provider-aware column types (SQL Server -&gt; nvarchar(max)), nullable-reference-types enabled, options-builder API.</PackageReleaseNotes>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
@@ -25,9 +27,25 @@
     <None Remove=".gitignore" />
   </ItemGroup>
 
-	<ItemGroup>
+  <ItemGroup>
+    <Compile Remove="EFTranslatable.Tests\**" />
+    <EmbeddedResource Remove="EFTranslatable.Tests\**" />
+    <None Remove="EFTranslatable.Tests\**" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="6.0.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="6.0.1" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.0" />
   </ItemGroup>
 
 	<ItemGroup>

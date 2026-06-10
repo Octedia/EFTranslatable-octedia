@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-04-25
+
+### Breaking
+- **`Translatable` is now a `sealed class` instead of a `struct`.** This makes `Translatable?` meaningful for optional columns, allows database `NULL` to round-trip cleanly, and removes the awkward "default-constructed struct has a null `Translations` dictionary" failure mode. `default(Translatable)` is no longer valid; use `Translatable.Empty`, `new Translatable()`, or `null` (for `Translatable?` properties).
+- **The default column type is now provider-aware.** `WithTranslatable` no longer hard-codes `"json"`. For SQL Server the resolved default is `nvarchar(max)` (fixing SQL Server 2016, which has no `json` column type); PostgreSQL gets `jsonb`; MySQL gets `json`; SQLite and unknown providers get `text`. Existing migrations that already pinned `nvarchar(max)` are unaffected; SQL Server migrations relying on the default will switch from `json` to `nvarchar(max)`.
+- **`WithTranslatable` API has moved to an options-builder pattern.** Use `modelBuilder.WithTranslatable(this, options => { options.ColumnType = ...; options.FallbackLocale = "en"; });`. The legacy positional overload `WithTranslatable(this, string columnType, string fallbackLocale = null)` is preserved as `[Obsolete]` and will be removed in v3.
+- **`Translatable.FallbackLocale` defaults to `"en"`** instead of `null`.
+- **`<Nullable>enable</Nullable>` is now on.** Public APIs are annotated; consumers compiling with nullable enabled may see new warnings reflecting actual nullability.
+
+### Added
+- `Translatable.Empty` — a fresh empty instance for ergonomic defaults.
+- Parameterless `Translatable()` constructor.
+- Provider-aware column-type resolver (`SqlServer → nvarchar(max)`, `Npgsql → jsonb`, `Pomelo/MySql.EFCore → json`, `Sqlite → text`).
+- New `EFTranslatable.Tests` xUnit project covering SQLite (in-memory) and SQL Server LocalDB. Tests assert: provider-aware column-type resolution, explicit overrides, write/round-trip on both providers, DB NULL ↔ `Translatable?` round-trip, Unicode (Arabic) on SQL Server, `JSON_VALUE` translation on SQL Server, `json_extract` translation on SQLite, the `[Obsolete]` overload still works.
+
+### Changed
+- Multi-target framework: `net6.0;net8.0;net10.0` (was `net6.0` only). EF Core packages are now conditional per TFM (6.0.1 / 8.0.0 / 10.0.0).
+- `HasTranslations<T>.Translate` now clones each `Translatable` per result (since it's a reference type) so applying the locale to the projected entity does not leak back into the source.
+- `WithTranslatable` calls `modelBuilder.Ignore<Translatable>()` so EF doesn't attempt to discover the class as an owned/related entity. Translatable properties are mapped as scalars via `HasConversion`.
+- Default `convertsNulls` behavior dropped — EF's standard null handling now applies. `Translatable?` properties round-trip DB NULL natively; non-nullable `Translatable` properties throw on DB NULL as expected.
+- SQL function names normalized to `JSON_VALUE` (SQL Server) and `json_extract` (others).
+
+### Removed
+- The hard-coded `columnType = "json"` default that broke SQL Server 2016.
+- Defensive null branches in `Translatable.ToJson`, `Set`, `Get`, and the `ValueComparer` that existed only because the struct's default state had a null `Translations` dictionary. The class always initializes the dictionary.
+
+## [Pre-2.0 Unreleased]
+
 ### Fixed
 - **Issue #2: NULL values in FromSqlRaw results now work correctly**
   - Modified `ValueConverter` to handle NULL database values with `convertsNulls: true` parameter

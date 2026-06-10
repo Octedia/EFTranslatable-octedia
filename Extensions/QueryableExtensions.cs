@@ -1,4 +1,5 @@
-﻿using System;
+#nullable enable
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -10,11 +11,11 @@ using Microsoft.EntityFrameworkCore;
 namespace EFTranslatable.Extensions
 {
     /// <summary>
-    /// Add Translatable/Localizations Methods to IQueryable
+    /// Adds Translatable / localization-aware filter methods to <see cref="IQueryable{T}"/>.
     /// </summary>
     public static class QueryableExtensions
     {
-        private static MethodInfo _localeExtract;
+        private static MethodInfo? _localeExtract;
         private static readonly object _lockObject = new object();
 
         private static MethodInfo LocaleExtract
@@ -44,18 +45,14 @@ namespace EFTranslatable.Extensions
         }
 
         /// <summary>
-        /// Filter the current EntitySet where the giving property-predicate Equals to the giving String
+        /// Filters the source where the selected Translatable property's value for the given locale equals
+        /// <paramref name="equalsTo"/>. Translates to <c>JSON_VALUE</c> on SQL Server, <c>json_extract</c> elsewhere.
         /// </summary>
-        /// <param name="source">DbSet</param>
-        /// <param name="property">The predicate to select a Translatable property</param>
-        /// <param name="equalsTo">The giving String to compare property to</param>
-        /// <param name="locale">The locale where the predicate will run on, If null the current Thread locale will be used instead</param>
-        /// <typeparam name="TSource">EntityFrameWork Model</typeparam>
-        /// <returns>IQueryable</returns>
-        public static IQueryable<TSource> WhereLocalizedEquals<TSource>(this IQueryable<TSource> source,
+        public static IQueryable<TSource> WhereLocalizedEquals<TSource>(
+            this IQueryable<TSource> source,
             Expression<Func<TSource, Translatable>> property,
             string equalsTo,
-            string locale = null)
+            string? locale = null)
         {
             if (equalsTo == null)
             {
@@ -68,16 +65,15 @@ namespace EFTranslatable.Extensions
                     ?? Thread.CurrentThread.CurrentUICulture.TwoLetterISOLanguageName.ToLowerInvariant();
 
             var expr = Expression.MakeBinary(ExpressionType.Equal,
-                Expression.Call(LocaleExtract!, Expression.Convert(property.Body, typeof(string)),
+                Expression.Call(LocaleExtract, Expression.Convert(property.Body, typeof(string)),
                     Expression.Constant($"$.{l}")),
                 Expression.Constant(equalsTo));
-
 
             return source.Where(Expression.Lambda<Func<TSource, bool>>(expr, false, property.Parameters));
         }
 
 
-        private static MethodInfo _localeContains;
+        private static MethodInfo? _localeContains;
 
         private static MethodInfo LocaleContains
         {
@@ -104,19 +100,17 @@ namespace EFTranslatable.Extensions
                 return _localeContains;
             }
         }
+
         /// <summary>
-        /// Filter the current EntitySet where the giving property-predicate Contains to the giving String
+        /// Filters the source where the selected Translatable property's value for the given locale contains
+        /// <paramref name="contains"/>. When <paramref name="locale"/> is null, the implicit string conversion
+        /// of the Translatable is searched directly.
         /// </summary>
-        /// <param name="source">DbSet</param>
-        /// <param name="property">The predicate to select a Translatable property</param>
-        /// <param name="contains">The giving String to check if property contains it</param>
-        /// <param name="locale">The locale where the predicate will run on, If null the current Thread locale will be used instead</param>
-        /// <typeparam name="TSource">EntityFrameWork Model</typeparam>
-        /// <returns>IQueryable</returns>
-        public static IQueryable<TSource> WhereLocalizedContains<TSource>(this IQueryable<TSource> source,
+        public static IQueryable<TSource> WhereLocalizedContains<TSource>(
+            this IQueryable<TSource> source,
             Expression<Func<TSource, Translatable>> property,
             string contains,
-            string locale = null)
+            string? locale = null)
         {
             if (contains == null)
             {
@@ -129,35 +123,22 @@ namespace EFTranslatable.Extensions
 
             if (locale == null)
             {
-                var expr = Expression.Call(convertedBody, LocaleContains!, containsExpr);
+                var expr = Expression.Call(convertedBody, LocaleContains, containsExpr);
 
                 return source.Where(Expression.Lambda<Func<TSource, bool>>(expr, false, property.Parameters));
             }
 
             var expr2 = Expression.Call(
-                Expression.Call(LocaleExtract!, convertedBody, Expression.Constant($"$.{locale}")),
-                LocaleContains!, containsExpr);
+                Expression.Call(LocaleExtract, convertedBody, Expression.Constant($"$.{locale}")),
+                LocaleContains, containsExpr);
 
             return source.Where(Expression.Lambda<Func<TSource, bool>>(expr2, false, property.Parameters));
         }
 
         /// <summary>
-        /// Materializes the query and applies translations to all entities in one call.
-        /// Use this with FromSqlRaw/FromSqlInterpolated to translate results client-side.
+        /// Materializes the query and applies translations to all entities asynchronously.
+        /// Use with <c>FromSqlRaw</c>/<c>FromSqlInterpolated</c> to translate results client-side.
         /// </summary>
-        /// <typeparam name="T">Entity type that inherits from HasTranslations&lt;T&gt;</typeparam>
-        /// <param name="query">The IQueryable (typically from FromSqlRaw)</param>
-        /// <param name="locale">Target locale code (e.g., "en", "ar", "fr")</param>
-        /// <param name="cancellationToken">Cancellation token</param>
-        /// <returns>List of translated entities</returns>
-        /// <example>
-        /// <code>
-        /// var doctors = await context.Doctors
-        ///     .FromSqlRaw("EXEC sp_GetDoctors")
-        ///     .ToListWithTranslationsAsync("en");
-        /// // doctors[0].Title is now a string in English
-        /// </code>
-        /// </example>
         public static async Task<List<T>> ToListWithTranslationsAsync<T>(
             this IQueryable<T> query,
             string locale,
@@ -169,20 +150,8 @@ namespace EFTranslatable.Extensions
         }
 
         /// <summary>
-        /// Materializes the query and applies translations to all entities (synchronous version).
-        /// Use this with FromSqlRaw/FromSqlInterpolated to translate results client-side.
+        /// Materializes the query and applies translations to all entities (synchronous).
         /// </summary>
-        /// <typeparam name="T">Entity type that inherits from HasTranslations&lt;T&gt;</typeparam>
-        /// <param name="query">The IQueryable (typically from FromSqlRaw)</param>
-        /// <param name="locale">Target locale code (e.g., "en", "ar", "fr")</param>
-        /// <returns>List of translated entities</returns>
-        /// <example>
-        /// <code>
-        /// var doctors = context.Doctors
-        ///     .FromSqlRaw("EXEC sp_GetDoctors")
-        ///     .ToListWithTranslations("en");
-        /// </code>
-        /// </example>
         public static List<T> ToListWithTranslations<T>(
             this IQueryable<T> query,
             string locale
