@@ -123,30 +123,59 @@ None at runtime. The library only depends on `Microsoft.EntityFrameworkCore` + `
 
 ## Working Style & Collaboration Rules
 
-# Global Working Style
-
 These rules apply in every project, every session, unconditionally.
 
-## Code Search
-- Never grep the codebase broadly. Ask the user to point to the relevant file or method first.
-- Only use targeted greps for a single, specific symbol name where the result is fast and precise.
-- For open-ended exploration, spawn an Explore subagent — never flood the main context with wide search results.
+### KISS — everything written
+- Applies to chat answers, docs, code comments, commit messages, changelog entries. Everything.
+- Lists and tables. One line per point. No long paragraphs, no prose reasoning unless asked.
+- Lead with the answer. Cut rationale unless asked "why".
+- A comment or doc line earns its place only by saying what the code cannot. Two or three lines is usually enough.
+- Commit bodies: what changed and the one fact that explains it — not the investigation narrative.
 
-## Git
+### Code Search
+- Search the codebase directly with Grep and Glob. Don't ask the user for file paths first.
+- For wide, open-ended sweeps, spawn an Explore subagent so the main context isn't flooded.
+
+### Git
 - Commit but never push. Stage and commit when asked; the user pushes manually.
 - No `Co-Authored-By` or any Claude attribution in commit messages — ever.
+- Commit subjects are Conventional Commits: `feat:`, `fix:`, `docs:`, `chore:`, `perf:`.
+- Branches use full-word prefixes: `feature/`, `fix/`, `hotfix/`, `chore/`, `enhancement/`. Never `feat/`.
+- Before reword, amend or rebase, run `git status -sb`. The user pushes between turns.
+- Never merge unless explicitly asked to merge. "Go ahead" / "do it all" never covers a merge.
+- Always merge with `--no-ff`. Never fast-forward, never squash — a feature stays one revertable unit (`git revert -m 1 <merge>`).
+- Name the merge commit as a Conventional Commit derived from the branch: `fix/skip-f01-query` → `fix: skip f01 query for registered appointments`.
 
-## Approval Gates
+### Approval Gates
 - Ask clarifying questions before starting any task.
 - Present a step-by-step plan and wait for explicit approval before writing code.
 - After each step, report results and wait for approval before continuing.
+- Skip the gates for fixes under 3 files with an obvious solution.
 - **Exception:** If the user says "go ahead", "do it all", "complete it", or similar — skip the gates and execute fully.
 
-## Wrap-up Gate
+### Wrap-up Gate
 - After finishing code changes, never close with a summary. Instead ask: "Are we done? Ready to update docs + CHANGELOG?"
 - CHANGELOG.md and docs/ updates are part of the definition of done, not optional extras.
 
-## Docs & Changelog
+### Docs & Changelog
 - Keep `CHANGELOG.md` (root) updated with a dated entry for every meaningful change.
 - New endpoints or features need a doc file under `docs/` per the project's CONTRIBUTING.md.
 - Update the `docs/README.md` index when adding a new folder or file.
+- Read the source before writing docs or changes. Use exact field names. No secrets or IPs in docs.
+
+### Investigation & Data
+- When comparing old and new versions, read the full method bodies (including SQL), not just signatures.
+- Downloaded data containing PII goes in the scratchpad, never in the repo.
+- Build only the affected project. Run the full solution before a commit.
+- Don't re-read a file already read this session unless it changed.
+- Expand shorthand labels (no bare A/B1/R4). Send SQL and commands as plain text, never inside AskUserQuestion.
+
+### Memory Discipline
+- Memory files in `~/.claude/projects/{slug}/memory/` only hold facts and behaviors **not** derivable from this CLAUDE.md or the codebase.
+- Never write a memory that restates a rule already in this file. Rules belong in CLAUDE.md; memory is for project-specific context, domain knowledge, and learned corrections that aren't already covered globally.
+- Before saving a new memory, check whether the same point already lives in CLAUDE.md or in `~/.claude/BLUEPRINT.md`. If it does, edit those instead.
+
+## Second brain
+wiki: brain-work
+- Before a feature/refactor/bug investigation, query brain-work (wiki skill) for prior decisions, incidents, and integration gotchas on the affected area — treat it as a primary source alongside the code.
+- After a nontrivial fix or architectural decision, offer to ingest it into the brain.
