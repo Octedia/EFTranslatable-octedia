@@ -178,4 +178,4 @@ These rules apply in every project, every session, unconditionally.
 ## Second brain
 wiki: brain-work
 - Before a feature/refactor/bug investigation, query brain-work (wiki skill) for prior decisions, incidents, and integration gotchas on the affected area — treat it as a primary source alongside the code.
-- After a nontrivial fix or architectural decision, offer to ingest it into the brain.
+- At wrap-up, offer ingestion only for reusable domain knowledge (incident, integration gotcha, product decision). Never for tooling, config or workflow changes.
