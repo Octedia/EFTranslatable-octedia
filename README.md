@@ -116,7 +116,7 @@ There is two ways of making a `Translatable` :
 
     public void Equality()
     {
-        // Will use the Current `Thread` locale
+        // No locale given → uses Translatable.FallbackLocale (defaults to "en")
         var post = _context.Posts.WhereLocalizedEquals(x => x.Title, "Good Title").SingleOrDefault();
 
         //Will use the giving Locale
@@ -201,7 +201,7 @@ var translated = doctors.Select(d => d.Translate("en")).ToList();
 
 #### Important Notes
 
-1. **NULL values are safe**: The library now handles NULL Translatable columns gracefully - they become empty Translatables with no translations.
+1. **NULL columns require `Translatable?`**: A DB NULL round-trips to a C# `null` only on a nullable `Translatable?` property; a non-nullable `Translatable` throws on DB NULL (EF's standard behavior). `ToListWithTranslations`/`Translate` then convert any null Translatable property into an empty Translatable, so translating an entity that has NULL columns is safe.
 
 2. **Cannot use .Select() in query pipeline**: This will NOT work:
    ```C#
@@ -221,16 +221,18 @@ EFTranslatable includes comprehensive null safety features to handle edge cases 
 
 ### Safe Handling of NULL Database Values
 
-If your database contains NULL values in Translatable columns (which can happen with legacy data or optional fields), EFTranslatable now handles them safely:
+If your database contains NULL values in Translatable columns (which can happen with legacy data or optional fields), declare those columns as `Translatable?` so EF can round-trip the NULL to a C# `null`. `Translate()` then turns the null property into an empty Translatable:
 
 ```C#
-// Even if Summary is NULL in the database, this won't crash
+// Subtitle is declared as `Translatable?`, so a DB NULL reads back as C# null.
 var doctor = await _context.Doctors.FindAsync(id);
 var translated = doctor.Translate("en"); // ✅ Safe - null properties become empty Translatable
 
 // Empty Translatable returns empty string (not null)
 string summary = translated.Summary; // Returns "" instead of throwing
 ```
+
+> A non-nullable `Translatable` column that contains a DB NULL will throw on materialization (EF's standard null handling). Use `Translatable?` for any column that may be NULL.
 
 ### Constructor Null Safety
 
@@ -283,13 +285,6 @@ While EFTranslatable handles null values safely, we recommend:
        translatedTitle = "Untitled";
    }
    ```
-
-### Migration from Older Versions
-
-If you're upgrading from a 1.x version that crashed on NULL values:
-- ✅ **No code changes required** - existing code will work
-- ✅ **No database migration required** - NULL columns now handled gracefully
-- ✅ **Backward compatible** - all existing functionality preserved
 
 ## Migration from v1
 

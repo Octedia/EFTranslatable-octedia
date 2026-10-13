@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Docs
+- Corrected `README.md` to match v2 behavior:
+  - `WhereLocalizedEquals` with no locale uses `Translatable.FallbackLocale` (default `"en"`), not the current thread locale.
+  - Clarified NULL-column handling: DB NULL only round-trips on `Translatable?`; a non-nullable `Translatable` throws on DB NULL. `Translate()` converts null properties to empty Translatables.
+  - Removed the stale pre-2.0 "Migration from Older Versions / backward compatible" note that contradicted the v2 breaking-change migration section.
+
 ## [2.0.0] - 2026-04-25
 
 ### Breaking
